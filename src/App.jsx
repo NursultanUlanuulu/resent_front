@@ -26,7 +26,7 @@ export default function App() {
 		setStatus({ type: 'loading', message: 'Отправляю...' })
 
 		try {
-			const res = await fetch('/api/email', {
+			const res = await fetch('https://resent-back.onrender.com/api/email', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
