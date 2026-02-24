@@ -9,6 +9,8 @@ export default function App() {
 	const [status, setStatus] = useState({ type: 'idle', message: '' })
 	const [isSending, setIsSending] = useState(false)
 
+	const API_BASE = import.meta.env.VITE_API_URL // обязателен в проде
+
 	const canSend = useMemo(() => {
 		return (
 			emailRegex.test(to.trim()) &&
@@ -22,11 +24,19 @@ export default function App() {
 		e.preventDefault()
 		if (!canSend) return
 
+		if (!API_BASE) {
+			setStatus({
+				type: 'error',
+				message: '❌ Не задан VITE_API_URL (Render Environment)',
+			})
+			return
+		}
+
 		setIsSending(true)
 		setStatus({ type: 'loading', message: 'Отправляю...' })
 
 		try {
-			const res = await fetch('/api/email', {
+			const res = await fetch(`${API_BASE}/api/email`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
@@ -36,30 +46,34 @@ export default function App() {
 				}),
 			})
 
+			const contentType = res.headers.get('content-type') || ''
+			const payload = contentType.includes('application/json')
+				? await res.json().catch(() => ({}))
+				: await res.text().catch(() => '')
+
 			if (!res.ok) {
-				const raw = await res.text()
 				setStatus({
 					type: 'error',
-					message: raw || 'Ошибка при отправке',
+					message:
+						typeof payload === 'string'
+							? payload || `Ошибка ${res.status}`
+							: JSON.stringify(payload),
 				})
-				setIsSending(false)
 				return
 			}
 
-			const data = await res.json().catch(() => ({}))
 			setStatus({
 				type: 'success',
-				message: `✅ Отправлено${data?.id ? ` (id: ${data.id})` : ''}`,
+				message: `✅ Отправлено${payload?.id ? ` (id: ${payload.id})` : ''}`,
 			})
 
-			// очищаем форму
 			setTo('')
 			setSubject('')
 			setText('')
-		} catch (err) {
+		} catch {
 			setStatus({
 				type: 'error',
-				message: 'Не удалось отправить (проверьте сервер / сеть)',
+				message: '❌ Не удалось отправить (сервер/сеть)',
 			})
 		} finally {
 			setIsSending(false)
@@ -69,8 +83,8 @@ export default function App() {
 	return (
 		<div className='page'>
 			<div className='card'>
-				<h1 className='title'>SMTP/API Email отправка</h1>
-				<p className='subtitle'>Фронт → Node.js → Email-сервис</p>
+				<h1 className='title'>Email отправка</h1>
+				<p className='subtitle'>Frontend (Static) → Backend (Node) → Resend</p>
 
 				<form onSubmit={handleSubmit} className='form'>
 					<label className='field'>
@@ -130,7 +144,9 @@ export default function App() {
 				</form>
 
 				<div className='footer'>
-					<code className='code'>POST /api/email</code>
+					<code className='code'>
+						API: {API_BASE || '(VITE_API_URL не задан)'}
+					</code>
 				</div>
 			</div>
 		</div>
